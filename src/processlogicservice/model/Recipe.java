@@ -13,7 +13,6 @@ public class Recipe  implements Serializable{
 	private static final long serialVersionUID = 1686060157326645578L;
 
 	@XmlElement String imageUrl;
-	//@XmlElement int calories;
 	@XmlElement String title;
 	@XmlElement String id;
 	@XmlElement String url;
@@ -25,12 +24,6 @@ public class Recipe  implements Serializable{
 	public void setImageUrl(String imageUrl) {
 		this.imageUrl = imageUrl;
 	}
-	/*public int getCalories() {
-		return calories;
-	}
-	public void setCalories(int calories) {
-		this.calories = calories;
-	}*/
 	public String getTitle() {
 		return title;
 	}

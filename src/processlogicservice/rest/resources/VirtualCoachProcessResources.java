@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import javax.ejb.LocalBean;
 import javax.ejb.Stateless;
@@ -308,7 +309,6 @@ public class VirtualCoachProcessResources {
 		} catch (Exception e) {
 			discernAndThrowException(e);
 		}
-		//Response res = Response.status(Response.Status.OK).build();
 		return createdM;
 	}
 
@@ -332,7 +332,6 @@ public class VirtualCoachProcessResources {
 
 		Measurement m = new Measurement();
 		m.setMeasurementId(measurementId);
-		//m.setPersonId(personId);
 		m.setValue(value);
 		m.setMeasureType(mt);
 		m.setMeasuringDate(measuringDate);
@@ -464,33 +463,29 @@ public class VirtualCoachProcessResources {
 		JsonNode tree = mapper.readTree(resp);
 		double resultY = tree.path("output").asDouble();
 		double slope = tree.path("line").path("slope").asDouble();
-		//double intercept = tree.path("line").path("intercept").asDouble();
 
-		//SE la proiezione e il risultato attuale sono nei limiti : continua così!
+		//If the projection and the current measurement are in the goal boundaries:
+		// keep going like this!
 
-		//il risultato previsto sarà nell'obbiettivo
-		if (chosenGoal.getMinvalue() <= resultY && resultY <= chosenGoal.getMaxvalue()) {
+		if (chosenGoal.getMinvalue() <= resultY && resultY <= chosenGoal.getMaxvalue()) { // if the predicted result is in the boundaries
 			myresponse.setGeneralComment("Your " + chosenMeasureType
 					+ " measurements are pretty good! If you keep going like this, your goal will be achieved!");
 			myresponse.setColor("green");
-			//i risultato attuali sono nell'obbiettivo
+			
 		} else if (chosenGoal.getMinvalue() <= lastMeasurement.getValue()
-				&& lastMeasurement.getValue() <= chosenGoal.getMaxvalue()) {
+				&& lastMeasurement.getValue() <= chosenGoal.getMaxvalue()) { // if current measurements are in the boundaries (but the prediction is not)
 			myresponse.setGeneralComment("Your current " + chosenMeasureType
 					+ " measurements are in the goal boundaries! Try to keep it as it is in order to achieve your goal!");
 			myresponse.setColor("yellow");
-			// se le previsioni non rientrano nell'obiettivo, ma la direzione è giusta
 		} else if ((slope > 0.3 && chosenGoal.getMinvalue() > lastMeasurement.getValue())
 				|| (slope < -0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())
-				|| (slope > -0.3 && slope < 0.3)) {
+				|| (slope > -0.3 && slope < 0.3)) { // if the predictions are not part of the goal but the direction is correct
 			myresponse.setGeneralComment("Your " + chosenMeasureType
 					+ " measurements are okay but you need to push a bit more in order to achieve your goal");
 			myresponse.setColor("yellow");
 
-			// se le previsioni non rientrano nell'obiettivo e la direzione è sbagliata
 		} else if ((slope < -0.3 && chosenGoal.getMinvalue() > lastMeasurement.getValue())
-				|| (slope > 0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())) {
-
+				|| (slope > 0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())) { // if the direction is wrong
 			myresponse.setGeneralComment("Your " + chosenMeasureType
 					+ " measurements are pretty far from your goal! You need to put more effort in this!");
 			myresponse.setColor("red");
@@ -670,8 +665,6 @@ public class VirtualCoachProcessResources {
 		@XmlElement
 		boolean satisfiable;
 
-		/* public ExpiringGoal() { super(); } */
-
 		public ExpiringGoal(Goal g) {
 			super();
 			this.goalId = g.getGoalId();
@@ -683,15 +676,6 @@ public class VirtualCoachProcessResources {
 			this.deadline = g.getDeadline();
 		}
 
-		/* public boolean isSatisfied() { return satisfied; }
-		 * 
-		 * public void setSatisfied(boolean satisfied) { this.satisfied =
-		 * satisfied; }
-		 * 
-		 * public boolean isSatisfiable() { return satisfiable; }
-		 * 
-		 * public void setSatisfiable(boolean satisfiable) { this.satisfiable =
-		 * satisfiable; } */
 	}
 
 	private Recipe requestRecipe(long personId, String course) throws JsonProcessingException, IOException {
@@ -764,15 +748,15 @@ public class VirtualCoachProcessResources {
 	}
 
 	private Response GETCaller(WebTarget target, String path, String acceptedMedia, HashMap<String, Object> queries) {
-		target = target.path(path);//.queryParam("minCal", 1000.0).queryParam("maxCal", 2000);
+		target = target.path(path);
 
 		if (queries != null) {
-			//			Set<String> keys = queries.keySet();
+			Set<String> keys = queries.keySet();
 
-			//			for (String key : keys) {
-			//				System.out.println("queries.get(" + key + ") = " + queries.get(key));
-			//				target = target.queryParam(key, queries.get(key));
-			//			}
+			for (String key : keys) {
+			System.out.println("queries.get(" + key + ") = " + queries.get(key));
+				target = target.queryParam(key, queries.get(key));
+			}
 		}
 		try {
 			Response response = target.request().accept(acceptedMedia).get(Response.class);
