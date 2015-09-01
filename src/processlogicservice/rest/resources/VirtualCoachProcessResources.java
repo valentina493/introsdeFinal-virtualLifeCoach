@@ -560,7 +560,10 @@ public class VirtualCoachProcessResources {
 				discernAndThrowException(e);
 			}
 			ExpiringGoal expGoal = new ExpiringGoal(g);
-			if (m != null) {
+			Date measuringDate = df.parse(m.getMeasuringDate());
+			if (m != null && 
+					!measuringDate.before(df.parse(g.getCreated())) &&
+					!measuringDate.after(df.parse(g.getDeadline()))){
 				expGoal.satisfied = (m.getValue() <= g.getMaxvalue() && m.getValue() >= g.getMinvalue());
 				expGoal.satisfiable = true;
 			} else {
@@ -610,7 +613,6 @@ public class VirtualCoachProcessResources {
 		Measurement oldestMeasurement = null;
 		Date oldestDate = null;
 		for (Measurement m : lastMeasurements) {
-			System.out.println("M : " + m + " " + m.getMeasureType().getName());
 			map.put(m.getMeasureType().getName(), m);
 
 			if (oldestMeasurement == null) {
@@ -636,9 +638,15 @@ public class VirtualCoachProcessResources {
 						+ ". Please add new ones so you can monitor your health");
 				return resp;
 			}
+			Measurement m = map.get(g.getMeasureType().getName());
+			if(df.parse(g.getCreated()).after(df.parse(m.getMeasuringDate()))){
+				resp.setGeneralComment("You do not have recent measurements of type " + g.getMeasureType().getName()
+						+ ". Please add new ones so you can monitor your health");
+				return resp;
+			}
 		}
 
-		//if every goal has at least a measurement, just pick the oldest one which was identified before
+		//if every goal has at least a (recent) measurement, just pick the oldest one which was identified before
 		resp.setGeneralComment(
 				"You have not added a new measurement of type " + oldestMeasurement.getMeasureType().getName()
 						+ " for a while. Please add new ones so you can monitor your health");
@@ -754,7 +762,6 @@ public class VirtualCoachProcessResources {
 			Set<String> keys = queries.keySet();
 
 			for (String key : keys) {
-			System.out.println("queries.get(" + key + ") = " + queries.get(key));
 				target = target.queryParam(key, queries.get(key));
 			}
 		}
