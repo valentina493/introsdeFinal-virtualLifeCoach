@@ -203,7 +203,7 @@ public class VirtualCoachProcessResources {
 			@QueryParam("deadline") String deadline) throws ParseException {
 
 		if (personId == 0 || measureType == null || measureType.isEmpty() || deadline == null || deadline.isEmpty()
-				|| (minValue == 0.0 && maxValue == 0.0) || (minValue >= maxValue)) {
+				|| (minValue == 0.0 && maxValue == 0.0)) {
 			// personId, measuretype and deadline must be present in the path
 			// and at least one of the extremes must be in there
 			throw new WebApplicationException(Response.Status.BAD_REQUEST);
@@ -213,7 +213,7 @@ public class VirtualCoachProcessResources {
 			maxValue = Double.POSITIVE_INFINITY;
 		}
 
-		if (df.parse(deadline).before(new Date())) {
+		if (df.parse(deadline).before(new Date()) || (minValue >= maxValue)) {
 			throw new WebApplicationException(Response.Status.BAD_REQUEST);
 		}
 
@@ -242,13 +242,17 @@ public class VirtualCoachProcessResources {
 	@Path("/updateGoal")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Goal updateGoal(@QueryParam("goalId") long goalId, @QueryParam("minValue") double minValue,
-			@QueryParam("maxValue") double maxValue, @QueryParam("deadline") String deadline) {
-		if (goalId == 0 || deadline == null || (minValue == 0.0 && maxValue == 0.0) || (minValue >= maxValue)) {
+			@QueryParam("maxValue") double maxValue, @QueryParam("deadline") String deadline) throws ParseException {
+		if (goalId == 0 || deadline == null || (minValue == 0.0 && maxValue == 0.0)) {
 			throw new WebApplicationException(Response.Status.BAD_REQUEST);
 		}
 
 		if (maxValue == 0.0) {
 			maxValue = Double.POSITIVE_INFINITY;
+		}
+
+		if (df.parse(deadline).before(new Date()) || (minValue >= maxValue)) {
+			throw new WebApplicationException(Response.Status.BAD_REQUEST);
 		}
 
 		//no need to set the measuretype
@@ -298,7 +302,17 @@ public class VirtualCoachProcessResources {
 		// don't need to set person and measuretype (trivially, not even id)
 		if (measuringDate == null || measuringDate.isEmpty()) {
 			measuringDate = df.format(new Date());
+		} else {
+			try {
+				Date measDate = df.parse(measuringDate);
+				if (measDate.after(new Date())) {
+					throw new WebApplicationException(Response.Status.BAD_REQUEST);
+				}
+			} catch (ParseException ex) {
+				throw new WebApplicationException(Response.Status.BAD_REQUEST);
+			}
 		}
+
 		m.setMeasuringDate(measuringDate);
 		m.setValue(value);
 
@@ -320,6 +334,14 @@ public class VirtualCoachProcessResources {
 			@QueryParam("value") double value) {
 		if (measurementId == 0 || value == 0.0 || measureType == null || measureType.isEmpty() || measuringDate == null
 				|| measuringDate.isEmpty()) {
+			throw new WebApplicationException(Response.Status.BAD_REQUEST);
+		}
+		try {
+			Date measDate = df.parse(measuringDate);
+			if (measDate.after(new Date())) {
+				throw new WebApplicationException(Response.Status.BAD_REQUEST);
+			}
+		} catch (ParseException ex) {
 			throw new WebApplicationException(Response.Status.BAD_REQUEST);
 		}
 
@@ -436,7 +458,7 @@ public class VirtualCoachProcessResources {
 		}
 
 		if (measurementsForChosenMeasureType.size() <= 1) {//need at least 2 points
-			myresponse.setGeneralComment("You need to add some new measurement for " + chosenMeasureType);
+			myresponse.setGeneralComment("You need to add some new measurement for " + chosenMeasureType + ".");
 			return myresponse;
 		}
 
@@ -464,28 +486,28 @@ public class VirtualCoachProcessResources {
 		double resultY = tree.path("output").asDouble();
 		double slope = tree.path("line").path("slope").asDouble();
 
-		//If the projection and the current measurement are in the goal boundaries:
+		//If the projection and the current measurement are within the goal boundaries:
 		// keep going like this!
 
-		if (chosenGoal.getMinvalue() <= resultY && resultY <= chosenGoal.getMaxvalue()) { // if the predicted result is in the boundaries
+		if (chosenGoal.getMinvalue() <= resultY && resultY <= chosenGoal.getMaxvalue()) {// if the predicted result is within the boundaries
 			myresponse.setGeneralComment("Your " + chosenMeasureType
 					+ " measurements are pretty good! If you keep going like this, your goal will be achieved!");
 			myresponse.setColor("green");
-			
+
 		} else if (chosenGoal.getMinvalue() <= lastMeasurement.getValue()
-				&& lastMeasurement.getValue() <= chosenGoal.getMaxvalue()) { // if current measurements are in the boundaries (but the prediction is not)
+				&& lastMeasurement.getValue() <= chosenGoal.getMaxvalue()) {// if current measurements are within the boundaries (but the prediction is not)
 			myresponse.setGeneralComment("Your current " + chosenMeasureType
-					+ " measurements are in the goal boundaries! Try to keep it as it is in order to achieve your goal!");
-			myresponse.setColor("yellow");
+					+ " measurements are within the goal boundaries! Try to keep it as it is in order to achieve your goal!");
+			myresponse.setColor("green");
 		} else if ((slope > 0.3 && chosenGoal.getMinvalue() > lastMeasurement.getValue())
 				|| (slope < -0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())
-				|| (slope > -0.3 && slope < 0.3)) { // if the predictions are not part of the goal but the direction is correct
+				|| (slope > -0.3 && slope < 0.3)) {// if the predictions are not part of the goal but the direction is correct
 			myresponse.setGeneralComment("Your " + chosenMeasureType
-					+ " measurements are okay but you need to push a bit more in order to achieve your goal");
+					+ " measurements are okay but you need to push a bit more in order to achieve your goal.");
 			myresponse.setColor("yellow");
 
 		} else if ((slope < -0.3 && chosenGoal.getMinvalue() > lastMeasurement.getValue())
-				|| (slope > 0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())) { // if the direction is wrong
+				|| (slope > 0.3 && chosenGoal.getMaxvalue() < lastMeasurement.getValue())) {// if the direction is wrong
 			myresponse.setGeneralComment("Your " + chosenMeasureType
 					+ " measurements are pretty far from your goal! You need to put more effort in this!");
 			myresponse.setColor("red");
@@ -503,8 +525,10 @@ public class VirtualCoachProcessResources {
 		myresponse.setQuote(q);
 
 		if (myresponse.getColor().contentEquals("green")) {
+			myresponse.setSuggestion("You deserve a treat!");
 			myresponse.setRecipe(getRandomTreatRecipe(personId));
 		} else if (chosenMeasureType.contentEquals("weight") || chosenMeasureType.contentEquals("assumed energy")) {
+			myresponse.setSuggestion("Tonight prepare yourself a healthy recipe to help you achieve your goal.");
 			myresponse.setRecipe(getRandomHealthyRecipe(personId));
 		} else if (chosenMeasureType.contentEquals("sleeping hours")) {
 			if (lastMeasurement.getValue() > chosenGoal.getMaxvalue()) {
@@ -561,9 +585,8 @@ public class VirtualCoachProcessResources {
 			}
 			ExpiringGoal expGoal = new ExpiringGoal(g);
 			Date measuringDate = df.parse(m.getMeasuringDate());
-			if (m != null && 
-					!measuringDate.before(df.parse(g.getCreated())) &&
-					!measuringDate.after(df.parse(g.getDeadline()))){
+			if (m != null && !measuringDate.before(df.parse(g.getCreated()))
+					&& !measuringDate.after(df.parse(g.getDeadline()))) {
 				expGoal.satisfied = (m.getValue() <= g.getMaxvalue() && m.getValue() >= g.getMinvalue());
 				expGoal.satisfiable = true;
 			} else {
@@ -614,12 +637,10 @@ public class VirtualCoachProcessResources {
 		Date oldestDate = null;
 		for (Measurement m : lastMeasurements) {
 			map.put(m.getMeasureType().getName(), m);
-
 			if (oldestMeasurement == null) {
 				oldestMeasurement = m;
 				oldestDate = df.parse(oldestMeasurement.getMeasuringDate());
 			} else {
-
 				Date mDate = df.parse(m.getMeasuringDate());
 
 				if (mDate.before(oldestDate)) {
@@ -639,7 +660,7 @@ public class VirtualCoachProcessResources {
 				return resp;
 			}
 			Measurement m = map.get(g.getMeasureType().getName());
-			if(df.parse(g.getCreated()).after(df.parse(m.getMeasuringDate()))){
+			if (df.parse(g.getCreated()).after(df.parse(m.getMeasuringDate()))) {
 				resp.setGeneralComment("You do not have recent measurements of type " + g.getMeasureType().getName()
 						+ ". Please add new ones so you can monitor your health");
 				return resp;
@@ -686,19 +707,14 @@ public class VirtualCoachProcessResources {
 
 	}
 
-	private Recipe requestRecipe(long personId, String course) throws JsonProcessingException, IOException {
-		Goal g = null;
+	private Recipe requestRecipe(long personId, String course, Goal assumedEnergyGoal)
+			throws JsonProcessingException, IOException {
+
 		int minCal = 1500, maxCal = 3000;
 
-		try {
-			g = ExternalServicesInformation.instance.entities.readActiveGoalByPersonByMeasureType(personId,
-					"assumed energy");
-		} catch (Exception e) {
-			discernAndThrowException(e);
-		}
-		if (g != null) {
-			maxCal = ((Double) g.getMaxvalue()).intValue();
-			minCal = ((Double) g.getMinvalue()).intValue();
+		if (assumedEnergyGoal != null) {
+			maxCal = ((Double) assumedEnergyGoal.getMaxvalue()).intValue();
+			minCal = ((Double) assumedEnergyGoal.getMinvalue()).intValue();
 		}
 
 		HashMap<String, Object> queries = new HashMap<>();
@@ -720,14 +736,29 @@ public class VirtualCoachProcessResources {
 
 	private Recipe getRandomHealthyRecipe(long personId) throws JsonProcessingException, IOException {
 		int randomIndex = new Random().nextInt(yummlyHealthyCoursesForRequests.size());
-		Recipe r = requestRecipe(personId, yummlyHealthyCoursesForRequests.get(randomIndex));
+		Goal assumedEnergyGoal = getAssumedEnergyGoal(personId);
+		Recipe r = requestRecipe(personId, yummlyHealthyCoursesForRequests.get(randomIndex), assumedEnergyGoal);
 		r.setType(yummlyHealthyCourses.get(randomIndex));
 
 		return r;
 	}
 
+	private Goal getAssumedEnergyGoal(long personId) {
+		Goal assumedEnergyGoal = null;
+		try {
+			assumedEnergyGoal = ExternalServicesInformation.instance.entities
+					.readActiveGoalByPersonByMeasureType(personId, "assumed energy");
+		} catch (Exception e) {
+			discernAndThrowException(e);
+		}
+
+		return assumedEnergyGoal;
+
+	}
+
 	private Recipe getRandomTreatRecipe(long personId) throws JsonProcessingException, IOException {
-		Recipe r = requestRecipe(personId, YUMMLY_DESSERT_ENCODING);//treat
+		Goal assumedEnergyGoal = getAssumedEnergyGoal(personId);
+		Recipe r = requestRecipe(personId, YUMMLY_DESSERT_ENCODING, assumedEnergyGoal);//treat
 		r.setType(YUMMLY_DESSERT);
 
 		return r;
